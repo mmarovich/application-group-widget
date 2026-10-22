@@ -122,7 +122,6 @@ KCM.SimpleKCM {
         }
 
         RowLayout {
-            visible: page.cfg_backgroundStyle !== "flat"
             Kirigami.FormData.label: page.tr("cfgBackgroundOpacity")
             spacing: Kirigami.Units.smallSpacing
 
@@ -141,7 +140,6 @@ KCM.SimpleKCM {
         }
 
         RowLayout {
-            visible: page.cfg_backgroundStyle !== "flat"
             Kirigami.FormData.label: page.tr("cfgBorderRadius")
             spacing: Kirigami.Units.smallSpacing
 

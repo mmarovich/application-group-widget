@@ -35,6 +35,126 @@ DragDrop.DropArea {
     property bool isPinned: false
     property bool inPanel: Plasmoid.formFactor !== PlasmaCore.Types.Planar
 
+    // Plasma 6.3 AppletPopup always paints a theme DialogBackground; there is no
+    // NoBackground hint. When we successfully hide that frame, customFrame is
+    // true and bgContainer is extended to the window edge.
+    property var popupWindow: fullRoot.Window.window
+    property bool _themeFrameHidden: false
+    readonly property bool customFrame: fullRoot.inPanel && fullRoot._themeFrameHidden
+
+    function withAlpha(c, a) {
+        if (c === undefined || c === null)
+            return Qt.rgba(0, 0, 0, a);
+        return Qt.rgba(c.r, c.g, c.b, a);
+    }
+
+    function isPopupSeparator(item) {
+        if (!item || item === fullRoot)
+            return false;
+        try {
+            if (item.imagePath === "widgets/line")
+                return true;
+            if (item.elementId === "horizontal-line" || item.elementId === "vertical-line")
+                return true;
+            if (item.z === 999)
+                return true;
+        } catch (e) {
+            return false;
+        }
+        return false;
+    }
+
+    function hideSeparatorsIn(host) {
+        if (!host)
+            return;
+        try {
+            var kids = host.children;
+            if (!kids)
+                return;
+            for (var i = 0; i < kids.length; i++) {
+                var child = kids[i];
+                if (!fullRoot.isPopupSeparator(child))
+                    continue;
+                try {
+                    child.opacity = 0;
+                    child.visible = false;
+                } catch (e1) {
+                }
+            }
+        } catch (e) {
+        }
+    }
+
+    function applyCustomPopupFrame() {
+        if (!fullRoot.inPanel) {
+            fullRoot._themeFrameHidden = false;
+            return;
+        }
+        var win = fullRoot.popupWindow;
+        if (!win) {
+            fullRoot._themeFrameHidden = false;
+            return;
+        }
+        try {
+            if (win.mainItem === undefined || win.leftPadding === undefined) {
+                fullRoot._themeFrameHidden = false;
+                return;
+            }
+            var content = win.contentItem;
+            var main = win.mainItem;
+            if (!content || !main) {
+                fullRoot._themeFrameHidden = false;
+                return;
+            }
+            var hidden = false;
+            var kids = content.children;
+            for (var i = 0; i < kids.length; i++) {
+                var child = kids[i];
+                if (!child || child === main)
+                    continue;
+                try {
+                    child.opacity = 0;
+                    child.visible = false;
+                    hidden = true;
+                } catch (e1) {
+                }
+            }
+            fullRoot.hideSeparatorsIn(main);
+            if (fullRoot.parent && fullRoot.parent !== main)
+                fullRoot.hideSeparatorsIn(fullRoot.parent);
+            fullRoot._themeFrameHidden = hidden;
+        } catch (err) {
+            fullRoot._themeFrameHidden = false;
+        }
+    }
+
+    onPopupWindowChanged: {
+        applyCustomPopupFrame();
+        Qt.callLater(applyCustomPopupFrame);
+    }
+    onVisibleChanged: {
+        applyCustomPopupFrame();
+        if (visible)
+            Qt.callLater(applyCustomPopupFrame);
+    }
+    Component.onCompleted: {
+        applyCustomPopupFrame();
+        Qt.callLater(applyCustomPopupFrame);
+    }
+
+    Connections {
+        target: fullRoot.popupWindow
+        ignoreUnknownSignals: true
+        function onPaddingChanged() {
+            fullRoot.applyCustomPopupFrame();
+        }
+        function onVisibleChanged() {
+            fullRoot.applyCustomPopupFrame();
+            if (fullRoot.popupWindow && fullRoot.popupWindow.visible)
+                Qt.callLater(fullRoot.applyCustomPopupFrame);
+        }
+    }
+
     property int dragSourceIndex: -1
     property int dragTargetIndex: -1
 
@@ -78,34 +198,80 @@ DragDrop.DropArea {
     Rectangle {
         id: bgContainer
         anchors.fill: parent
+        anchors.leftMargin: fullRoot.customFrame && fullRoot.popupWindow ? -fullRoot.popupWindow.leftPadding : 0
+        anchors.rightMargin: fullRoot.customFrame && fullRoot.popupWindow ? -fullRoot.popupWindow.rightPadding : 0
+        anchors.topMargin: fullRoot.customFrame && fullRoot.popupWindow ? -fullRoot.popupWindow.topPadding : 0
+        anchors.bottomMargin: fullRoot.customFrame && fullRoot.popupWindow ? -fullRoot.popupWindow.bottomPadding : 0
         radius: fullRoot.borderRadius
         color: {
-            if (fullRoot.backgroundStyle === "flat") return "transparent";
-            if (fullRoot.backgroundStyle === "glass") return Kirigami.Theme.backgroundColor;
-            if (fullRoot.backgroundStyle === "outline") return "transparent";
-            return Kirigami.Theme.backgroundColor;
+            var bg = Kirigami.Theme.backgroundColor;
+            var a = fullRoot.backgroundOpacity;
+            if (fullRoot.backgroundStyle === "glass")
+                return "transparent";
+            if (fullRoot.backgroundStyle === "outline")
+                return fullRoot.withAlpha(bg, a * 0.35);
+            return fullRoot.withAlpha(bg, a);
         }
-        opacity: {
-            if (fullRoot.backgroundStyle === "flat") return 1.0;
-            if (fullRoot.backgroundStyle === "glass") return Math.min(0.65, fullRoot.backgroundOpacity);
-            if (fullRoot.backgroundStyle === "outline") return 1.0;
-            return fullRoot.backgroundOpacity;
-        }
-        border.color: {
-            if (fullRoot.backgroundStyle === "outline") return Kirigami.Theme.highlightColor;
-            if (fullRoot.backgroundStyle === "flat") return "transparent";
-            return Kirigami.Theme.hoverColor;
-        }
-        border.width: fullRoot.backgroundStyle === "flat" ? 0 : 1
+        border.width: 0
 
         Rectangle {
+            anchors.fill: parent
+            radius: parent.radius
+            visible: fullRoot.backgroundStyle === "glass"
+            gradient: Gradient {
+                GradientStop {
+                    position: 0.0
+                    color: {
+                        var bg = Kirigami.Theme.backgroundColor;
+                        var light = Qt.lighter(bg, 1.4);
+                        var mixed = Qt.rgba(
+                            light.r + (1.0 - light.r) * 0.25,
+                            light.g + (1.0 - light.g) * 0.25,
+                            light.b + (1.0 - light.b) * 0.25,
+                            1
+                        );
+                        return fullRoot.withAlpha(mixed, fullRoot.backgroundOpacity * 0.6);
+                    }
+                }
+                GradientStop {
+                    position: 1.0
+                    color: fullRoot.withAlpha(Kirigami.Theme.backgroundColor, fullRoot.backgroundOpacity * 0.6)
+                }
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: parent.radius
+            color: "transparent"
+            border.width: {
+                if (fullRoot.backgroundStyle === "flat")
+                    return 0;
+                if (fullRoot.backgroundStyle === "outline")
+                    return 2;
+                return 1;
+            }
+            border.color: {
+                if (fullRoot.backgroundStyle === "flat")
+                    return "transparent";
+                if (fullRoot.backgroundStyle === "outline")
+                    return Kirigami.Theme.highlightColor;
+                if (fullRoot.backgroundStyle === "glass")
+                    return Qt.rgba(1, 1, 1, 0.30);
+                return fullRoot.withAlpha(Kirigami.Theme.textColor, 0.15);
+            }
+        }
+
+        Rectangle {
+            visible: fullRoot.backgroundStyle === "card" || fullRoot.backgroundStyle === "glass"
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
+            anchors.topMargin: 1
+            anchors.leftMargin: parent.radius
+            anchors.rightMargin: parent.radius
             height: 1
-            radius: fullRoot.borderRadius
-            color: "white"
-            opacity: fullRoot.backgroundStyle === "flat" ? 0 : 0.08
+            color: Qt.rgba(1, 1, 1, fullRoot.backgroundStyle === "glass" ? 0.35 : 0.12)
         }
 
         MouseArea {
