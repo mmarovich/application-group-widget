@@ -21,6 +21,8 @@ KCM.SimpleKCM {
     property string cfg_backgroundStyleDefault: "card"
     property real cfg_backgroundOpacity: 0.85
     property real cfg_backgroundOpacityDefault: 0.85
+    property alias cfg_blurBehind: blurBehindCheck.checked
+    property bool cfg_blurBehindDefault: true
     property int cfg_borderRadius: 16
     property int cfg_borderRadiusDefault: 16
     property alias cfg_showLabels: showLabelsCheck.checked
@@ -137,6 +139,13 @@ KCM.SimpleKCM {
             QQC2.Label {
                 text: Math.round(page.cfg_backgroundOpacity * 100) + "%"
             }
+        }
+
+        QQC2.CheckBox {
+            id: blurBehindCheck
+            Kirigami.FormData.label: page.tr("cfgBlurBehind")
+            text: page.tr("cfgBlurBehindHint")
+            checked: true
         }
 
         RowLayout {

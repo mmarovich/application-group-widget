@@ -73,6 +73,10 @@
       <max>1.00</max>
     </entry>
 
+    <entry name="blurBehind" type="Bool">
+      <default>true</default>
+    </entry>
+
     <entry name="borderRadius" type="Int">
       <default>16</default>
       <min>0</min>

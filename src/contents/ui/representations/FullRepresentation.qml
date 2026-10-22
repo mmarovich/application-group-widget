@@ -26,6 +26,9 @@ DragDrop.DropArea {
     property string iconSize: "medium"
     property string backgroundStyle: "card"
     property real backgroundOpacity: 0.85
+    // When false, the popup asks KWin for (almost) no blur/contrast region so
+    // the opacity slider shows the desktop through the popup.
+    property bool blurBehind: true
     property int borderRadius: 16
     property bool showLabels: true
     property int fontSizeDelta: 0
@@ -180,7 +183,11 @@ DragDrop.DropArea {
             fullRoot._maskFrame = f;
             fullRoot._origMaskImagePath = String(f.imagePath).indexOf("/frames/rounded-") >= 0 ? "dialogs/background" : String(f.imagePath);
         }
-        var path = fullRoot.roundedMaskPath(fullRoot.maskRadius);
+        // KWin treats an empty region as "blur the whole window", so the
+        // no-blur mask keeps a single opaque pixel in each corner piece.
+        var path = fullRoot.blurBehind
+            ? fullRoot.roundedMaskPath(fullRoot.maskRadius)
+            : decodeURIComponent(String(Qt.resolvedUrl("../../frames/noblur.svg")).replace(/^file:\/\//, ""));
         try {
             if (String(f.imagePath) !== path)
                 f.imagePath = path;
@@ -205,6 +212,7 @@ DragDrop.DropArea {
     }
 
     onMaskRadiusChanged: applyRoundedMask()
+    onBlurBehindChanged: applyRoundedMask()
     onCustomFrameChanged: applyRoundedMask()
 
     // Square off the corners that touch the panel, matching the blur mask. Qt.TopEdge=1, LeftEdge=2,
@@ -339,12 +347,12 @@ DragDrop.DropArea {
                             light.b + (1.0 - light.b) * 0.25,
                             1
                         );
-                        return fullRoot.withAlpha(mixed, fullRoot.backgroundOpacity * 0.6);
+                        return fullRoot.withAlpha(mixed, fullRoot.backgroundOpacity * (fullRoot.blurBehind ? 0.6 : 1.0));
                     }
                 }
                 GradientStop {
                     position: 1.0
-                    color: fullRoot.withAlpha(Kirigami.Theme.backgroundColor, fullRoot.backgroundOpacity * 0.6)
+                    color: fullRoot.withAlpha(Kirigami.Theme.backgroundColor, fullRoot.backgroundOpacity * (fullRoot.blurBehind ? 0.6 : 1.0))
                 }
             }
         }

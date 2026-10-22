@@ -243,6 +243,7 @@ PlasmoidItem {
         iconSize: Plasmoid.configuration.iconSize
         backgroundStyle: Plasmoid.configuration.backgroundStyle
         backgroundOpacity: Plasmoid.configuration.backgroundOpacity
+        blurBehind: Plasmoid.configuration.blurBehind
         borderRadius: Plasmoid.configuration.borderRadius
         showLabels: Plasmoid.configuration.showLabels
         fontSizeDelta: Plasmoid.configuration.fontSizeDelta
