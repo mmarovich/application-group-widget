@@ -126,6 +126,102 @@ DragDrop.DropArea {
         } catch (err) {
             fullRoot._themeFrameHidden = false;
         }
+        fullRoot.applyRoundedMask();
+    }
+
+    // KWin's blur/contrast region for the popup follows the alpha mask of the
+    // popup's (now hidden) theme FrameSvgItem. Point that item at a rounded
+    // mask SVG with the same radius so the backdrop matches our rounded shape.
+    property var _maskFrame: null
+    property string _origMaskImagePath: ""
+    readonly property int maskRadius: Math.max(0, Math.min(32, Math.round(fullRoot.borderRadius / 2) * 2))
+
+    function findThemeFrameSvg(win) {
+        try {
+            var content = win.contentItem;
+            var main = win.mainItem;
+            var kids = content.children;
+            for (var i = 0; i < kids.length; i++) {
+                var bg = kids[i];
+                if (!bg || bg === main)
+                    continue;
+                var inner = bg.children;
+                for (var j = 0; j < inner.length; j++) {
+                    var f = inner[j];
+                    if (f && f.imagePath !== undefined && f.enabledBorders !== undefined)
+                        return f;
+                }
+            }
+        } catch (e) {
+        }
+        return null;
+    }
+
+    function roundedMaskPath(r) {
+        var url = String(Qt.resolvedUrl("../../frames/rounded-" + r + ".svg"));
+        return decodeURIComponent(url.replace(/^file:\/\//, ""));
+    }
+
+    function applyRoundedMask() {
+        var win = fullRoot.popupWindow;
+        if (!fullRoot.customFrame || !win) {
+            if (fullRoot._maskFrame && fullRoot._origMaskImagePath !== "") {
+                try {
+                    fullRoot._maskFrame.imagePath = fullRoot._origMaskImagePath;
+                } catch (e0) {
+                }
+            }
+            return;
+        }
+        var f = fullRoot.findThemeFrameSvg(win);
+        if (!f)
+            return;
+        if (fullRoot._maskFrame !== f) {
+            fullRoot._maskFrame = f;
+            fullRoot._origMaskImagePath = String(f.imagePath).indexOf("/frames/rounded-") >= 0 ? "dialogs/background" : String(f.imagePath);
+        }
+        var path = fullRoot.roundedMaskPath(fullRoot.maskRadius);
+        try {
+            if (String(f.imagePath) !== path)
+                f.imagePath = path;
+            // Keep every side of the mask except the panel side, so corners
+            // that sit against the screen edge stay rounded too.
+            var want = fullRoot.wantedFrameBorders();
+            if (Number(f.enabledBorders) !== want)
+                f.enabledBorders = want;
+        } catch (e1) {
+        }
+    }
+
+    // KSvg.FrameSvg.EnabledBorders: Top=1, Bottom=2, Left=4, Right=8.
+    function wantedFrameBorders() {
+        switch (Plasmoid.location) {
+        case PlasmaCore.Types.TopEdge: return 2 | 4 | 8;
+        case PlasmaCore.Types.BottomEdge: return 1 | 4 | 8;
+        case PlasmaCore.Types.LeftEdge: return 1 | 2 | 8;
+        case PlasmaCore.Types.RightEdge: return 1 | 2 | 4;
+        default: return 15;
+        }
+    }
+
+    onMaskRadiusChanged: applyRoundedMask()
+    onCustomFrameChanged: applyRoundedMask()
+
+    // Square off the corners that touch the panel, matching the blur mask. Qt.TopEdge=1, LeftEdge=2,
+    // RightEdge=4, BottomEdge=8.
+    readonly property int popupEdges: {
+        if (!fullRoot.customFrame)
+            return 15;
+        switch (Plasmoid.location) {
+        case PlasmaCore.Types.TopEdge: return 2 | 4 | 8;
+        case PlasmaCore.Types.BottomEdge: return 1 | 2 | 4;
+        case PlasmaCore.Types.LeftEdge: return 1 | 4 | 8;
+        case PlasmaCore.Types.RightEdge: return 1 | 2 | 8;
+        default: return 15;
+        }
+    }
+    function cornerRadius(e1, e2) {
+        return ((fullRoot.popupEdges & e1) && (fullRoot.popupEdges & e2)) ? fullRoot.borderRadius : 0;
     }
 
     onPopupWindowChanged: {
@@ -147,6 +243,11 @@ DragDrop.DropArea {
         ignoreUnknownSignals: true
         function onPaddingChanged() {
             fullRoot.applyCustomPopupFrame();
+        }
+        function onBordersChanged() {
+            // PopupPlasmaWindow resets the frame borders when it repositions.
+            fullRoot.applyRoundedMask();
+            Qt.callLater(fullRoot.applyRoundedMask);
         }
         function onVisibleChanged() {
             fullRoot.applyCustomPopupFrame();
@@ -203,6 +304,10 @@ DragDrop.DropArea {
         anchors.topMargin: fullRoot.customFrame && fullRoot.popupWindow ? -fullRoot.popupWindow.topPadding : 0
         anchors.bottomMargin: fullRoot.customFrame && fullRoot.popupWindow ? -fullRoot.popupWindow.bottomPadding : 0
         radius: fullRoot.borderRadius
+        topLeftRadius: fullRoot.cornerRadius(1, 2)
+        topRightRadius: fullRoot.cornerRadius(1, 4)
+        bottomLeftRadius: fullRoot.cornerRadius(8, 2)
+        bottomRightRadius: fullRoot.cornerRadius(8, 4)
         color: {
             var bg = Kirigami.Theme.backgroundColor;
             var a = fullRoot.backgroundOpacity;
@@ -217,6 +322,10 @@ DragDrop.DropArea {
         Rectangle {
             anchors.fill: parent
             radius: parent.radius
+            topLeftRadius: parent.topLeftRadius
+            topRightRadius: parent.topRightRadius
+            bottomLeftRadius: parent.bottomLeftRadius
+            bottomRightRadius: parent.bottomRightRadius
             visible: fullRoot.backgroundStyle === "glass"
             gradient: Gradient {
                 GradientStop {
@@ -243,6 +352,10 @@ DragDrop.DropArea {
         Rectangle {
             anchors.fill: parent
             radius: parent.radius
+            topLeftRadius: parent.topLeftRadius
+            topRightRadius: parent.topRightRadius
+            bottomLeftRadius: parent.bottomLeftRadius
+            bottomRightRadius: parent.bottomRightRadius
             color: "transparent"
             border.width: {
                 if (fullRoot.backgroundStyle === "flat")
@@ -268,8 +381,8 @@ DragDrop.DropArea {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.topMargin: 1
-            anchors.leftMargin: parent.radius
-            anchors.rightMargin: parent.radius
+            anchors.leftMargin: parent.topLeftRadius
+            anchors.rightMargin: parent.topRightRadius
             height: 1
             color: Qt.rgba(1, 1, 1, fullRoot.backgroundStyle === "glass" ? 0.35 : 0.12)
         }
