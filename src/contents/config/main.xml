@@ -78,6 +78,13 @@
       <max>1.00</max>
     </entry>
 
+    <!-- -1 = theme default background color; 0..1 = hue for a custom color. -->
+    <entry name="backgroundHue" type="Double">
+      <default>-1</default>
+      <min>-1</min>
+      <max>1</max>
+    </entry>
+
     <!-- Legacy, read once by main.qml migrateBlurBehind(). Blur now comes from backgroundStyle "glass". -->
     <entry name="blurBehind" type="Bool">
       <default>true</default>

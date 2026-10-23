@@ -21,6 +21,8 @@ KCM.SimpleKCM {
     property string cfg_backgroundStyleDefault: "card"
     property real cfg_backgroundOpacity: 0.85
     property real cfg_backgroundOpacityDefault: 0.85
+    property real cfg_backgroundHue: -1
+    property real cfg_backgroundHueDefault: -1
     property int cfg_borderRadius: 16
     property int cfg_borderRadiusDefault: 16
     property alias cfg_showLabels: showLabelsCheck.checked
@@ -118,18 +120,15 @@ KCM.SimpleKCM {
             valueRole: "value"
             model: [
                 { value: "card",    label: page.tr("cfgStyleCard") },
-                { value: "glass",   label: page.tr("cfgStyleGlass") },
                 { value: "flat",    label: page.tr("cfgStyleFlat") },
                 { value: "outline", label: page.tr("cfgStyleOutline") }
             ]
-            Component.onCompleted: currentIndex = indexOfValue(page.cfg_backgroundStyle)
+            Component.onCompleted: currentIndex = Math.max(0, indexOfValue(page.cfg_backgroundStyle === "glass" ? "card" : page.cfg_backgroundStyle))
             onActivated: page.cfg_backgroundStyle = currentValue
         }
 
         RowLayout {
-            // One slider, two meanings: over the blur for Frosted Glass,
-            // real see-through-ness for every other style.
-            Kirigami.FormData.label: page.cfg_backgroundStyle === "glass" ? page.tr("cfgFrostTint") : page.tr("cfgBackgroundOpacity")
+            Kirigami.FormData.label: page.tr("cfgBackgroundOpacity")
             spacing: Kirigami.Units.smallSpacing
 
             QQC2.Slider {
@@ -146,12 +145,89 @@ KCM.SimpleKCM {
             }
         }
 
-        QQC2.Label {
-            Layout.maximumWidth: Kirigami.Units.gridUnit * 16
-            wrapMode: Text.WordWrap
-            font: Kirigami.Theme.smallFont
-            opacity: 0.75
-            text: page.cfg_backgroundStyle === "glass" ? page.tr("cfgFrostTintHint") : page.tr("cfgOpacityHint")
+        RowLayout {
+            Kirigami.FormData.label: page.tr("cfgBackgroundColor")
+            spacing: Kirigami.Units.smallSpacing
+
+            // Far left = theme default, then the hues 0..1 (stored as backgroundHue).
+            // Slider runs from -0.08 so the theme-default notch is easy to hit.
+            QQC2.Slider {
+                id: hueSlider
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 10
+                from: -0.08
+                to: 1.0
+                stepSize: 0.01
+                value: page.cfg_backgroundHue < 0 ? -0.08 : page.cfg_backgroundHue
+                onMoved: page.cfg_backgroundHue = value < 0 ? -1 : Math.round(value * 100) / 100
+
+                // The desktop style draws its handle inside its own background,
+                // so a custom track needs its own handle.
+                handle: Rectangle {
+                    x: hueSlider.leftPadding + hueSlider.visualPosition * (hueSlider.availableWidth - width)
+                    y: hueSlider.topPadding + hueSlider.availableHeight / 2 - height / 2
+                    implicitWidth: Kirigami.Units.gridUnit * 1.1
+                    implicitHeight: Kirigami.Units.gridUnit * 1.1
+                    radius: width / 2
+                    Kirigami.Theme.colorSet: Kirigami.Theme.Button
+                    Kirigami.Theme.inherit: false
+                    color: hueSlider.pressed ? Kirigami.Theme.highlightColor : Kirigami.Theme.backgroundColor
+                    border.width: 1
+                    border.color: hueSlider.hovered || hueSlider.pressed ? Kirigami.Theme.highlightColor : Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.35)
+                }
+
+                background: Item {
+                    x: hueSlider.leftPadding
+                    y: hueSlider.topPadding + hueSlider.availableHeight / 2 - height / 2
+                    width: hueSlider.availableWidth
+                    height: Math.round(Kirigami.Units.gridUnit * 0.45)
+
+                    // Theme-default segment, then the rainbow.
+                    Rectangle {
+                        id: themeSeg
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width * 0.08 / 1.08
+                        height: parent.height
+                        radius: height / 2
+                        color: Kirigami.Theme.backgroundColor
+                        border.width: 1
+                        border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.4)
+                    }
+                    Rectangle {
+                        anchors.left: themeSeg.right
+                        anchors.right: parent.right
+                        anchors.leftMargin: 2
+                        anchors.verticalCenter: parent.verticalCenter
+                        height: parent.height
+                        radius: height / 2
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0.0;   color: Qt.hsla(0.0,   0.45, 0.45, 1) }
+                            GradientStop { position: 0.167; color: Qt.hsla(0.167, 0.45, 0.45, 1) }
+                            GradientStop { position: 0.333; color: Qt.hsla(0.333, 0.45, 0.45, 1) }
+                            GradientStop { position: 0.5;   color: Qt.hsla(0.5,   0.45, 0.45, 1) }
+                            GradientStop { position: 0.667; color: Qt.hsla(0.667, 0.45, 0.45, 1) }
+                            GradientStop { position: 0.833; color: Qt.hsla(0.833, 0.45, 0.45, 1) }
+                            GradientStop { position: 1.0;   color: Qt.hsla(1.0,   0.45, 0.45, 1) }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                visible: page.cfg_backgroundHue >= 0
+                implicitWidth: Kirigami.Units.gridUnit * 1.2
+                implicitHeight: Kirigami.Units.gridUnit * 1.2
+                radius: Kirigami.Units.smallSpacing
+                color: Qt.hsla(Math.max(0, page.cfg_backgroundHue), 0.45, Kirigami.Theme.textColor.hslLightness > 0.5 ? 0.30 : 0.82, 1)
+                border.width: 1
+                border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.4)
+            }
+
+            QQC2.Label {
+                visible: page.cfg_backgroundHue < 0
+                text: page.tr("cfgThemeDefault")
+            }
         }
 
         RowLayout {

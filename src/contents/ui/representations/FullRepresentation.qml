@@ -26,10 +26,14 @@ DragDrop.DropArea {
     property string iconSize: "medium"
     property string backgroundStyle: "card"
     property real backgroundOpacity: 0.85
-    // Blur is part of the style: only Frosted Glass asks KWin to blur behind
-    // the popup. Every other style gets (almost) no blur/contrast region, so
-    // the Opacity slider really shows the desktop through the popup.
-    readonly property bool blurBehind: backgroundStyle === "glass"
+    // < 0 = theme background color, otherwise a hue (0..1) for a custom color.
+    property real backgroundHue: -1
+    readonly property color baseColor: fullRoot.backgroundHue < 0
+        ? Kirigami.Theme.backgroundColor
+        : Qt.hsla(fullRoot.backgroundHue, 0.45, Kirigami.Theme.textColor.hslLightness > 0.5 ? 0.30 : 0.82, 1)
+    // The popup never asks KWin to blur behind it (only a 1px corner region,
+    // see noblur.svg), so Opacity really shows the desktop through the popup.
+    readonly property bool blurBehind: false
     property int borderRadius: 16
     property bool showLabels: true
     property int fontSizeDelta: 0
@@ -317,44 +321,8 @@ DragDrop.DropArea {
         topRightRadius: fullRoot.cornerRadius(1, 4)
         bottomLeftRadius: fullRoot.cornerRadius(8, 2)
         bottomRightRadius: fullRoot.cornerRadius(8, 4)
-        color: {
-            var bg = Kirigami.Theme.backgroundColor;
-            var a = fullRoot.backgroundOpacity;
-            if (fullRoot.backgroundStyle === "glass")
-                return "transparent";
-            return fullRoot.withAlpha(bg, a);
-        }
+        color: fullRoot.withAlpha(fullRoot.baseColor, fullRoot.backgroundOpacity)
         border.width: 0
-
-        Rectangle {
-            anchors.fill: parent
-            radius: parent.radius
-            topLeftRadius: parent.topLeftRadius
-            topRightRadius: parent.topRightRadius
-            bottomLeftRadius: parent.bottomLeftRadius
-            bottomRightRadius: parent.bottomRightRadius
-            visible: fullRoot.backgroundStyle === "glass"
-            gradient: Gradient {
-                GradientStop {
-                    position: 0.0
-                    color: {
-                        var bg = Kirigami.Theme.backgroundColor;
-                        var light = Qt.lighter(bg, 1.4);
-                        var mixed = Qt.rgba(
-                            light.r + (1.0 - light.r) * 0.25,
-                            light.g + (1.0 - light.g) * 0.25,
-                            light.b + (1.0 - light.b) * 0.25,
-                            1
-                        );
-                        return fullRoot.withAlpha(mixed, fullRoot.backgroundOpacity);
-                    }
-                }
-                GradientStop {
-                    position: 1.0
-                    color: fullRoot.withAlpha(Kirigami.Theme.backgroundColor, fullRoot.backgroundOpacity)
-                }
-            }
-        }
 
         Rectangle {
             anchors.fill: parent
@@ -376,14 +344,12 @@ DragDrop.DropArea {
                     return "transparent";
                 if (fullRoot.backgroundStyle === "outline")
                     return Kirigami.Theme.highlightColor;
-                if (fullRoot.backgroundStyle === "glass")
-                    return Qt.rgba(1, 1, 1, 0.30);
                 return fullRoot.withAlpha(Kirigami.Theme.textColor, 0.15);
             }
         }
 
         Rectangle {
-            visible: fullRoot.backgroundStyle === "card" || fullRoot.backgroundStyle === "glass"
+            visible: fullRoot.backgroundStyle === "card"
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
@@ -391,7 +357,7 @@ DragDrop.DropArea {
             anchors.leftMargin: parent.topLeftRadius
             anchors.rightMargin: parent.topRightRadius
             height: 1
-            color: Qt.rgba(1, 1, 1, fullRoot.backgroundStyle === "glass" ? 0.35 : 0.12)
+            color: Qt.rgba(1, 1, 1, 0.12)
         }
 
         MouseArea {
