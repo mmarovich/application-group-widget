@@ -27,7 +27,7 @@ Drop it onto your **desktop** as a full workspace dashboard, or tuck it into you
 - **System Apps Explorer**: Search and add installed apps in real time by name, category, or description with one click.
 - **Official KDE Icon Picker**: Integrated with `KIconThemes.IconDialog` to pick any icon from your active Plasma theme.
 - **Drag to Reorder**: Rearrange cards directly inside the grid or list with live visual target indicators.
-- **Appearance & Styling**: Grid or list views, responsive auto columns or fixed count (2–8), custom card styles (Solid, Frosted Glass, Flat, Outline), background opacity, and corner radius sliders.
+- **Appearance & Styling**: Grid or list views, responsive auto columns or fixed count (2–8), custom card styles (Modern Card, Frosted Glass, Flat, Outline), background opacity, and corner radius sliders.
 - **Right-Click Menus Everywhere**: Right-click cards to edit, delete, or open containing directories. Right-click empty background to pin or add items even when headers are hidden.
 - **Bilingual & RTL**: Full support for English and Persian, including proper right-to-left layout mirroring.
 - **Zero Idle CPU**: No background polling loops; sleeps quietly when not in use.

@@ -78,20 +78,7 @@ PlasmoidItem {
         }
     }
 
-    // Blur and the "Frosted Glass" style are gone: the popup never blurs, and
-    // Opacity always means see-through. Old glass settings become Solid.
-    function migrateBlurBehind() {
-        if (Plasmoid.configuration.backgroundStyle === "glass") {
-            Plasmoid.configuration.backgroundStyle = "card";
-        }
-        if (Plasmoid.configuration.blurBehind === false) {
-            // Back to the default. The key is otherwise unused.
-            Plasmoid.configuration.blurBehind = true;
-        }
-    }
-
     Component.onCompleted: {
-        root.migrateBlurBehind();
         if (!root.configuring && Plasmoid.configuration.livePreview) {
             Plasmoid.configuration.livePreview = "";
         }
@@ -320,7 +307,6 @@ PlasmoidItem {
         iconSize: root.cfg("iconSize")
         backgroundStyle: root.cfg("backgroundStyle")
         backgroundOpacity: root.cfg("backgroundOpacity")
-        backgroundHue: root.cfg("backgroundHue")
         borderRadius: root.cfg("borderRadius")
         showLabels: root.cfg("showLabels")
         fontSizeDelta: root.cfg("fontSizeDelta")
