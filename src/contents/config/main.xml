@@ -42,6 +42,11 @@
     <entry name="sortBy" type="String">
       <default>manual</default>
     </entry>
+
+    <!-- Hidden. Unsaved config-dialog preview. Pages must not declare cfg_livePreview. -->
+    <entry name="livePreview" type="String">
+      <default></default>
+    </entry>
   </group>
 
   <group name="Appearance">

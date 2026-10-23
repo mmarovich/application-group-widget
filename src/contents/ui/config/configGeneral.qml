@@ -38,6 +38,11 @@ KCM.SimpleKCM {
     LayoutMirroring.enabled: page.lang === "fa"
     LayoutMirroring.childrenInherit: true
 
+    LivePreview {
+        page: page
+        tag: "general"
+    }
+
     KIconThemes.IconDialog {
         id: panelIconDialog
         title: page.tr("cfgChoosePanelIcon")
