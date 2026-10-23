@@ -21,8 +21,6 @@ KCM.SimpleKCM {
     property string cfg_backgroundStyleDefault: "card"
     property real cfg_backgroundOpacity: 0.85
     property real cfg_backgroundOpacityDefault: 0.85
-    property alias cfg_blurBehind: blurBehindCheck.checked
-    property bool cfg_blurBehindDefault: true
     property int cfg_borderRadius: 16
     property int cfg_borderRadiusDefault: 16
     property alias cfg_showLabels: showLabelsCheck.checked
@@ -129,7 +127,9 @@ KCM.SimpleKCM {
         }
 
         RowLayout {
-            Kirigami.FormData.label: page.tr("cfgBackgroundOpacity")
+            // One slider, two meanings: over the blur for Frosted Glass,
+            // real see-through-ness for every other style.
+            Kirigami.FormData.label: page.cfg_backgroundStyle === "glass" ? page.tr("cfgFrostTint") : page.tr("cfgBackgroundOpacity")
             spacing: Kirigami.Units.smallSpacing
 
             QQC2.Slider {
@@ -146,11 +146,12 @@ KCM.SimpleKCM {
             }
         }
 
-        QQC2.CheckBox {
-            id: blurBehindCheck
-            Kirigami.FormData.label: page.tr("cfgBlurBehind")
-            text: page.tr("cfgBlurBehindHint")
-            checked: true
+        QQC2.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 16
+            wrapMode: Text.WordWrap
+            font: Kirigami.Theme.smallFont
+            opacity: 0.75
+            text: page.cfg_backgroundStyle === "glass" ? page.tr("cfgFrostTintHint") : page.tr("cfgOpacityHint")
         }
 
         RowLayout {

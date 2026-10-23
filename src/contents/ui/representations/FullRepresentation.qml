@@ -26,9 +26,10 @@ DragDrop.DropArea {
     property string iconSize: "medium"
     property string backgroundStyle: "card"
     property real backgroundOpacity: 0.85
-    // When false, the popup asks KWin for (almost) no blur/contrast region so
-    // the opacity slider shows the desktop through the popup.
-    property bool blurBehind: true
+    // Blur is part of the style: only Frosted Glass asks KWin to blur behind
+    // the popup. Every other style gets (almost) no blur/contrast region, so
+    // the Opacity slider really shows the desktop through the popup.
+    readonly property bool blurBehind: backgroundStyle === "glass"
     property int borderRadius: 16
     property bool showLabels: true
     property int fontSizeDelta: 0
@@ -321,8 +322,6 @@ DragDrop.DropArea {
             var a = fullRoot.backgroundOpacity;
             if (fullRoot.backgroundStyle === "glass")
                 return "transparent";
-            if (fullRoot.backgroundStyle === "outline")
-                return fullRoot.withAlpha(bg, a * 0.35);
             return fullRoot.withAlpha(bg, a);
         }
         border.width: 0
@@ -347,12 +346,12 @@ DragDrop.DropArea {
                             light.b + (1.0 - light.b) * 0.25,
                             1
                         );
-                        return fullRoot.withAlpha(mixed, fullRoot.backgroundOpacity * (fullRoot.blurBehind ? 0.6 : 1.0));
+                        return fullRoot.withAlpha(mixed, fullRoot.backgroundOpacity);
                     }
                 }
                 GradientStop {
                     position: 1.0
-                    color: fullRoot.withAlpha(Kirigami.Theme.backgroundColor, fullRoot.backgroundOpacity * (fullRoot.blurBehind ? 0.6 : 1.0))
+                    color: fullRoot.withAlpha(Kirigami.Theme.backgroundColor, fullRoot.backgroundOpacity)
                 }
             }
         }

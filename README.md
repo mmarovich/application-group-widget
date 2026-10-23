@@ -168,7 +168,7 @@ Right-click the widget and select **Configure Application Group…**. Options ar
       • View mode: Grid or List<br>
       • Columns mode: Responsive Auto or Fixed (2–8)<br>
       • Icon sizes: Small (24px) up to Huge (64px)<br>
-      • Card styles: Modern Card, Frosted Glass, Flat, Outline<br>
+      • Card styles: Solid, Frosted Glass, Flat, Outline<br>
       • Background opacity &amp; corner radius sliders<br>
       • Show/hide labels &amp; font size offset
     </td>

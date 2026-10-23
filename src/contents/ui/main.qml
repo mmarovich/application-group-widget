@@ -78,7 +78,22 @@ PlasmoidItem {
         }
     }
 
+    // Blur used to be a separate "blurBehind" checkbox; it is now part of the
+    // style (only Frosted Glass blurs). Glass with blur turned off looked like a
+    // see-through tinted panel, which is what the Solid style now does.
+    function migrateBlurBehind() {
+        if (Plasmoid.configuration.blurBehind !== false) {
+            return;
+        }
+        if (Plasmoid.configuration.backgroundStyle === "glass") {
+            Plasmoid.configuration.backgroundStyle = "card";
+        }
+        // Back to the default so this runs only once. The key is otherwise unused.
+        Plasmoid.configuration.blurBehind = true;
+    }
+
     Component.onCompleted: {
+        root.migrateBlurBehind();
         if (!root.configuring && Plasmoid.configuration.livePreview) {
             Plasmoid.configuration.livePreview = "";
         }
@@ -307,7 +322,6 @@ PlasmoidItem {
         iconSize: root.cfg("iconSize")
         backgroundStyle: root.cfg("backgroundStyle")
         backgroundOpacity: root.cfg("backgroundOpacity")
-        blurBehind: root.cfg("blurBehind")
         borderRadius: root.cfg("borderRadius")
         showLabels: root.cfg("showLabels")
         fontSizeDelta: root.cfg("fontSizeDelta")
