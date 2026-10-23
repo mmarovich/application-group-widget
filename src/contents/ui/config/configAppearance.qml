@@ -219,7 +219,8 @@ KCM.SimpleKCM {
                 implicitWidth: Kirigami.Units.gridUnit * 1.2
                 implicitHeight: Kirigami.Units.gridUnit * 1.2
                 radius: Kirigami.Units.smallSpacing
-                color: Qt.hsla(Math.max(0, page.cfg_backgroundHue), 0.45, Kirigami.Theme.textColor.hslLightness > 0.5 ? 0.30 : 0.82, 1)
+                // Same color the popup uses with a dark Plasma theme (Max's setup).
+                color: Qt.hsla(Math.max(0, page.cfg_backgroundHue), 0.45, 0.30, 1)
                 border.width: 1
                 border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.4)
             }
