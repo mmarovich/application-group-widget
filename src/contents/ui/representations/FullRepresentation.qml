@@ -124,6 +124,65 @@ DragDrop.DropArea {
         fullRoot._applyingFrame = false;
     }
 
+    // AppletPopup is the only window whose dialog frame we may restyle.
+    // The panel is a ContainmentView and must be left alone; the first
+    // incubation can still report that window until the popup is reparented.
+    function isAppletPopupWindow(win) {
+        if (!win)
+            return false;
+        try {
+            if (String(win.objectName) === "popupWindow")
+                return true;
+            return win.appletInterface !== undefined && win.mainItem !== undefined && win.leftPadding !== undefined;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function findThemeFrameWrapper(win) {
+        if (!win || !win.contentItem)
+            return null;
+        var content = win.contentItem;
+        var main = win.mainItem;
+        var kids = content.children;
+        if (!kids)
+            return null;
+        for (var i = 0; i < kids.length; i++) {
+            var child = kids[i];
+            if (!child || child === main || child === QQC2.Overlay.overlay)
+                continue;
+            if (child.imagePath !== undefined && child.enabledBorders !== undefined)
+                return child;
+            var inner = child.children;
+            if (!inner)
+                continue;
+            for (var j = 0; j < inner.length; j++) {
+                var innerChild = inner[j];
+                if (innerChild && innerChild.imagePath !== undefined && innerChild.enabledBorders !== undefined)
+                    return child;
+            }
+        }
+        return null;
+    }
+
+    // Stop the theme dialog from painting, but keep the item in the scene.
+    // visible:false makes KSvg skip mask rebuilds. PlasmaWindow then leaves
+    // KWin's background-contrast region on the theme dialog (the whole
+    // window). The first popup hits that because noblur.svg / rounded-N.svg
+    // are not in the KSvg cache yet, so the drawer looks fully opaque. The
+    // next popup rasterizes from cache, the mask sticks, and the same
+    // opacity looks correct.
+    function concealThemeFrame(wrapper) {
+        if (!wrapper)
+            return;
+        try {
+            if (!wrapper.visible)
+                wrapper.visible = true;
+            wrapper.opacity = 0;
+        } catch (e) {
+        }
+    }
+
     function applyCustomPopupFrame() {
         // Swapping the mask changes padding, which calls back in here.
         if (fullRoot._applyingFrame)
@@ -135,11 +194,19 @@ DragDrop.DropArea {
             return;
         }
         var win = fullRoot.popupWindow;
-        if (!win || !win.visible) {
+        // Not the applet popup (panel, or the item is not reparented yet).
+        // Do not touch that window and do not restore a mask onto it.
+        if (!win || !fullRoot.isAppletPopupWindow(win)) {
+            fullRoot._themeFrameHidden = false;
+            fullRoot._applyingFrame = false;
+            return;
+        }
+        if (!win.visible) {
             fullRoot._themeFrameHidden = false;
             fullRoot.finishCustomPopupFrame();
             return;
         }
+        var frameWrapper = null;
         try {
             if (win.mainItem === undefined || win.leftPadding === undefined) {
                 fullRoot._themeFrameHidden = false;
@@ -158,48 +225,58 @@ DragDrop.DropArea {
             // dialog is open. While it is visible it filters every mouse press
             // on the window, which starves AppletPopup's edge resize handler.
 
-            var hidden = false;
-            var kids = content.children;
-            if (kids) {
-                for (var i = 0; i < kids.length; i++) {
-                    var child = kids[i];
-                    if (!child || child === main || child === QQC2.Overlay.overlay)
-                        continue;
-                    var isThemeFrame = (child.imagePath !== undefined && child.enabledBorders !== undefined);
-                    if (!isThemeFrame && child.children) {
-                        for (var j = 0; j < child.children.length; j++) {
-                            var innerChild = child.children[j];
-                            if (innerChild && innerChild.imagePath !== undefined && innerChild.enabledBorders !== undefined) {
-                                isThemeFrame = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (isThemeFrame) {
-                        try {
-                            child.opacity = 0;
-                            child.visible = false;
-                            hidden = true;
-                        } catch (e1) {
-                        }
-                    }
-                }
+            // PlasmaWindow is constructed transparent, but the first exposed
+            // popup can keep an opaque clear color until a later popup has
+            // created a translucent surface. Only write when it is wrong;
+            // rewriting it on every resize repaints the whole window.
+            try {
+                if (!win.color || win.color.a !== 0)
+                    win.color = "transparent";
+            } catch (eColor) {
             }
+
+            frameWrapper = fullRoot.findThemeFrameWrapper(win);
+            // Mark the frame hidden before the mask swap so applyRoundedMask
+            // does not restore dialogs/background. Conceal only after the
+            // mask has been generated.
+            fullRoot._themeFrameHidden = !!frameWrapper;
 
             fullRoot.hideSeparatorsIn(main);
             if (fullRoot.parent && fullRoot.parent !== main)
                 fullRoot.hideSeparatorsIn(fullRoot.parent);
-            fullRoot._themeFrameHidden = hidden;
         } catch (err) {
             fullRoot._themeFrameHidden = false;
+            frameWrapper = null;
         }
         fullRoot.finishCustomPopupFrame();
+        if (frameWrapper && fullRoot._themeFrameHidden)
+            fullRoot.concealThemeFrame(frameWrapper);
+    }
+
+    function schedulePopupFrameSettle() {
+        if (!fullRoot.inPanel || !fullRoot.popupWindow || !fullRoot.isAppletPopupWindow(fullRoot.popupWindow)) {
+            popupFrameTimer.stop();
+            return;
+        }
+        if (!fullRoot.popupWindow.visible) {
+            popupFrameTimer.stop();
+            // Put the theme margins back before AppletPopup saves the size.
+            fullRoot.applyCustomPopupFrame();
+            return;
+        }
+        fullRoot.applyCustomPopupFrame();
+        Qt.callLater(fullRoot.applyCustomPopupFrame);
+        if (!popupFrameTimer.running) {
+            popupFrameTimer.ticks = 0;
+            popupFrameTimer.start();
+        }
     }
 
     // KWin's blur/contrast region follows the alpha mask of the popup's (now
     // hidden) theme FrameSvgItem. Point that item at a rounded mask of the
     // same radius so the backdrop matches the widget background.
     property var _maskFrame: null
+    property var _maskReady: null
     property string _origMaskImagePath: ""
     readonly property int maskRadius: Math.max(0, Math.min(32, Math.round(fullRoot.borderRadius / 2) * 2))
 
@@ -356,7 +433,10 @@ DragDrop.DropArea {
         fullRoot.probeCornerSupport();
         var win = fullRoot.popupWindow;
         if (!fullRoot.customFrame || !win) {
-            fullRoot.restoreThemeFrame();
+            // A visible popup that has not found the frame yet must not
+            // restore dialogs/background over a mask we already installed.
+            if (!win || !win.visible)
+                fullRoot.restoreThemeFrame();
             return;
         }
         var f = fullRoot.findThemeFrameSvg(win);
@@ -385,6 +465,11 @@ DragDrop.DropArea {
             var want = fullRoot.wantedFrameBorders();
             if (Number(f.enabledBorders) !== want)
                 f.enabledBorders = want;
+            // Force the pixmap (and therefore PlasmaWindow::maskChanged →
+            // KWindowEffects) to exist before we conceal the frame. A mere
+            // imagePath write does not rasterize until the next polish, and
+            // the first popup's polish used to be skipped.
+            fullRoot._maskReady = f.mask;
         } catch (e1) {
         }
         // imagePath updates fixed margins before it returns, and the popup's
@@ -445,23 +530,33 @@ DragDrop.DropArea {
     }
     onBorderRadiusChanged: applyCornerRadii()
 
-    onPopupWindowChanged: {
-        if (fullRoot.popupWindow && fullRoot.popupWindow.visible) {
-            applyCustomPopupFrame();
-            Qt.callLater(applyCustomPopupFrame);
-        }
-    }
-    onVisibleChanged: {
-        if (visible && fullRoot.popupWindow && fullRoot.popupWindow.visible) {
-            applyCustomPopupFrame();
-            Qt.callLater(applyCustomPopupFrame);
-        }
-    }
+    onPopupWindowChanged: schedulePopupFrameSettle()
+    onVisibleChanged: schedulePopupFrameSettle()
     Component.onCompleted: {
         applyCornerRadii();
-        if (fullRoot.popupWindow && fullRoot.popupWindow.visible) {
-            applyCustomPopupFrame();
-            Qt.callLater(applyCustomPopupFrame);
+        schedulePopupFrameSettle();
+    }
+
+    // DialogBackground's FrameSvg is created in another QML engine and can
+    // show up a frame or two after the popup is exposed. Keep settling until
+    // our mask is actually on that frame.
+    Timer {
+        id: popupFrameTimer
+        interval: 32
+        repeat: true
+        property int ticks: 0
+        onTriggered: {
+            if (!fullRoot.popupWindow || !fullRoot.popupWindow.visible || !fullRoot.isAppletPopupWindow(fullRoot.popupWindow)) {
+                stop();
+                return;
+            }
+            // Keep going long enough for the Wayland surface to exist. The
+            // first maskChanged is often dropped if it fires before the
+            // window is mapped, which is what leaves the first drawer opaque.
+            fullRoot.applyCustomPopupFrame();
+            ticks++;
+            if (ticks >= 10)
+                stop();
         }
     }
 
@@ -473,17 +568,22 @@ DragDrop.DropArea {
                 fullRoot.applyCustomPopupFrame();
         }
         function onBordersChanged() {
-            // PopupPlasmaWindow resets the frame borders when it repositions.
-            if (fullRoot.popupWindow && fullRoot.popupWindow.visible) {
-                fullRoot.applyRoundedMask();
-                Qt.callLater(fullRoot.applyRoundedMask);
-            }
+            // PopupPlasmaWindow resets the frame borders when it repositions,
+            // including on the first show. Re-apply the mask and conceal.
+            if (fullRoot.popupWindow && fullRoot.popupWindow.visible)
+                Qt.callLater(fullRoot.applyCustomPopupFrame);
         }
         function onVisibleChanged() {
-            if (fullRoot.popupWindow && fullRoot.popupWindow.visible) {
+            fullRoot.schedulePopupFrameSettle();
+        }
+    }
+
+    Connections {
+        target: fullRoot.popupWindow ? fullRoot.popupWindow.contentItem : null
+        ignoreUnknownSignals: true
+        function onChildrenChanged() {
+            if (fullRoot.popupWindow && fullRoot.popupWindow.visible)
                 fullRoot.applyCustomPopupFrame();
-                Qt.callLater(fullRoot.applyCustomPopupFrame);
-            }
         }
     }
 
