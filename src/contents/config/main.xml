@@ -32,6 +32,18 @@
       <default>true</default>
     </entry>
 
+    <!-- Accent-color glow around the panel button while its drawer is open -->
+    <entry name="glowEnabled" type="Bool">
+      <default>true</default>
+    </entry>
+
+    <!-- 0-100: brightness and reach of the glow -->
+    <entry name="glowIntensity" type="Int">
+      <default>60</default>
+      <min>0</min>
+      <max>100</max>
+    </entry>
+
     <entry name="enableFilter" type="Bool">
       <default>true</default>
     </entry>

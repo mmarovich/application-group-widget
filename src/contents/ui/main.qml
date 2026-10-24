@@ -284,6 +284,8 @@ PlasmoidItem {
         showBadge: root.cfg("showBadge")
         lang: root.lang
         expanded: root.expanded
+        glowEnabled: root.cfg("glowEnabled") !== false
+        glowIntensity: Number(root.cfg("glowIntensity"))
 
         onToggleRequested: root.expanded = !root.expanded
         onDropReceived: event => {

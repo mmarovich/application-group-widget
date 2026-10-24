@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
+import QtQuick.Effects
+import QtQuick.Shapes
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.draganddrop as DragDrop
@@ -18,6 +20,8 @@ DragDrop.DropArea {
     property string lang: "en"
     // True while this group's drawer is open; drives the selection glow.
     property bool expanded: false
+    property bool glowEnabled: true
+    property int glowIntensity: 60
 
     signal toggleRequested()
     signal dropReceived(var event)
@@ -64,48 +68,118 @@ DragDrop.DropArea {
         Behavior on color { ColorAnimation { duration: Kirigami.Units.shortDuration } }
     }
 
-    // Selection glow: accent-colored soft halo that gently pulses while the drawer is open.
-    // Hidden and not animating when closed, so it costs nothing at idle.
+    // Selection glow: a soft accent-color bloom that radiates out from the button while
+    // the drawer is open, and gently pulses. glowIntensity (0-100) sets both brightness
+    // and reach. Nothing is drawn or animated when the drawer is closed or glow is off.
     Item {
         id: selectionGlow
         anchors.centerIn: parent
         width: Math.min(parent.width, parent.height)
         height: width
-        visible: compactRoot.expanded
-        opacity: 1
-
+        z: -1
+        visible: active
+        readonly property bool active: compactRoot.expanded && compactRoot.glowEnabled && level > 0
+        readonly property real level: Math.max(0, Math.min(1, compactRoot.glowIntensity / 100))
         readonly property color accent: Kirigami.Theme.highlightColor
+        readonly property color hot: Qt.lighter(accent, 1.35)
         readonly property real cornerRadius: Math.round(width * 0.28)
+        // Pulse factor: 1.0 -> 0.68 -> 1.0, only while active.
+        property real pulse: 1.0
 
-        // Inner tint behind the icon.
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: 3
-            radius: Math.max(0, selectionGlow.cornerRadius - 3)
-            color: Qt.rgba(selectionGlow.accent.r, selectionGlow.accent.g, selectionGlow.accent.b, 0.30)
+        SequentialAnimation on pulse {
+            running: selectionGlow.active
+            loops: Animation.Infinite
+            alwaysRunToEnd: false
+            NumberAnimation { from: 1.0; to: 0.68; duration: 900; easing.type: Easing.InOutSine }
+            NumberAnimation { from: 0.68; to: 1.0; duration: 900; easing.type: Easing.InOutSine }
         }
+        onActiveChanged: if (!active) pulse = 1.0
 
-        // Three rings fading outward give a soft edge without a shader.
-        Repeater {
-            model: [0.35, 0.70, 1.0]
-            Rectangle {
-                required property int index
-                required property var modelData
-                anchors.fill: parent
-                anchors.margins: index
-                radius: Math.max(0, selectionGlow.cornerRadius - index)
-                color: "transparent"
-                border.width: 1
-                border.color: Qt.rgba(selectionGlow.accent.r, selectionGlow.accent.g, selectionGlow.accent.b, modelData)
+        // Radial bloom: an accent gradient that fades smoothly with distance. Drawn as a
+        // circle and squashed vertically, since a horizontal panel has more room to the
+        // sides than above and below.
+        component Bloom: Shape {
+            id: bloomShape
+            property real reach: 0
+            property real strength: 1
+            property color tint: selectionGlow.accent
+            readonly property real r: selectionGlow.width / 2 + reach
+            readonly property real core: (selectionGlow.width / 2) / r
+            readonly property real a: Math.min(1, strength) * selectionGlow.pulse
+            function c(f) { return Qt.rgba(tint.r, tint.g, tint.b, Math.min(1, a * f)); }
+            function at(f) { return core + (1 - core) * f; }
+            width: r * 2
+            height: r * 2
+            anchors.centerIn: parent
+            visible: selectionGlow.active
+            transform: Scale {
+                origin.x: bloomShape.width / 2
+                origin.y: bloomShape.height / 2
+                // Vertically the panel window only extends a few pixels past the button, so
+                // fade out within ~12px to avoid a hard edge at the window border.
+                yScale: Math.min(1, (selectionGlow.height / 2 + Math.min(12, bloomShape.reach * 0.6)) / bloomShape.r)
+            }
+            ShapePath {
+                strokeWidth: -1
+                strokeColor: "transparent"
+                fillGradient: RadialGradient {
+                    centerX: bloomShape.r; centerY: bloomShape.r; centerRadius: bloomShape.r
+                    focalX: bloomShape.r; focalY: bloomShape.r
+                    GradientStop { position: 0.0; color: bloomShape.c(1.0) }
+                    GradientStop { position: bloomShape.core; color: bloomShape.c(1.0) }
+                    GradientStop { position: bloomShape.at(0.12); color: bloomShape.c(0.90) }
+                    GradientStop { position: bloomShape.at(0.30); color: bloomShape.c(0.62) }
+                    GradientStop { position: bloomShape.at(0.55); color: bloomShape.c(0.32) }
+                    GradientStop { position: bloomShape.at(0.80); color: bloomShape.c(0.10) }
+                    GradientStop { position: 1.0; color: bloomShape.c(0.0) }
+                }
+                startX: 0; startY: bloomShape.r
+                PathArc { x: bloomShape.r * 2; y: bloomShape.r; radiusX: bloomShape.r; radiusY: bloomShape.r }
+                PathArc { x: 0; y: bloomShape.r; radiusX: bloomShape.r; radiusY: bloomShape.r }
             }
         }
 
-        SequentialAnimation on opacity {
-            running: compactRoot.expanded
-            loops: Animation.Infinite
-            alwaysRunToEnd: false
-            NumberAnimation { from: 1.0; to: 0.5; duration: 850; easing.type: Easing.InOutSine }
-            NumberAnimation { from: 0.5; to: 1.0; duration: 850; easing.type: Easing.InOutSine }
+        // Wide outer bloom: reach and brightness both grow with intensity.
+        Bloom {
+            reach: selectionGlow.width * (0.3 + 2.7 * selectionGlow.level)
+            strength: 0.4 + 0.8 * selectionGlow.level
+        }
+        // Brighter, tighter core so the light reads as coming from the button.
+        Bloom {
+            reach: selectionGlow.width * (0.15 + 0.85 * selectionGlow.level)
+            strength: 0.25 + 0.65 * selectionGlow.level
+            tint: selectionGlow.hot
+        }
+
+        // Tight inner halo hugging the button, so the glow reads as coming from it.
+        Rectangle {
+            id: innerShape
+            anchors.centerIn: parent
+            width: parent.width + 2
+            height: parent.height + 2
+            radius: selectionGlow.cornerRadius + 1
+            color: selectionGlow.hot
+            visible: false
+        }
+        MultiEffect {
+            source: innerShape
+            anchors.fill: innerShape
+            visible: selectionGlow.active
+            autoPaddingEnabled: true
+            blurEnabled: true
+            blur: 1.0
+            blurMax: 12 + Math.round(20 * selectionGlow.level)
+            opacity: Math.min(1, 0.45 + 0.75 * selectionGlow.level) * (0.75 + 0.25 * selectionGlow.pulse)
+        }
+
+        // Crisp accent ring on the button edge.
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 1
+            radius: Math.max(0, selectionGlow.cornerRadius - 1)
+            color: Qt.rgba(selectionGlow.accent.r, selectionGlow.accent.g, selectionGlow.accent.b, 0.18 + 0.2 * selectionGlow.level)
+            border.width: 1.5
+            border.color: Qt.rgba(selectionGlow.hot.r, selectionGlow.hot.g, selectionGlow.hot.b, 0.6 + 0.4 * selectionGlow.level)
         }
     }
 
