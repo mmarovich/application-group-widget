@@ -12,6 +12,8 @@ DragDrop.DropArea {
 
     property int itemsCount: 0
     property string panelIcon: "folder-apps"
+    property string panelIconMode: "grid"
+    property var items: []
     property bool showBadge: true
     property string lang: "en"
 
@@ -62,6 +64,7 @@ DragDrop.DropArea {
 
     Kirigami.Icon {
         id: iconItem
+        visible: !appGrid.visible
         anchors.fill: parent
         anchors.margins: Kirigami.Units.smallSpacing
         source: {
@@ -70,6 +73,17 @@ DragDrop.DropArea {
             }
             return Qt.resolvedUrl("../../icons/logo.png");
         }
+        active: mouseArea.containsMouse || compactRoot.containsDrag
+    }
+
+    // Phone-folder style icon: the first up to 4 item icons in a rounded square.
+    AppGridIcon {
+        id: appGrid
+        visible: compactRoot.panelIconMode !== "custom" && compactRoot.items && compactRoot.items.length > 0
+        anchors.centerIn: parent
+        width: Math.min(parent.width, parent.height) - Kirigami.Units.smallSpacing
+        height: width
+        items: compactRoot.items
         active: mouseArea.containsMouse || compactRoot.containsDrag
     }
 

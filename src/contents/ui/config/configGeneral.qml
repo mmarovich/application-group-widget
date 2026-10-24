@@ -14,6 +14,8 @@ KCM.SimpleKCM {
     property string cfg_groupTitleDefault: "Applications"
     property alias cfg_showHeader: showHeaderCheck.checked
     property bool cfg_showHeaderDefault: true
+    property string cfg_panelIconMode: "grid"
+    property string cfg_panelIconModeDefault: "grid"
     property string cfg_panelIcon: "com.keyaruga.applicationgroup"
     property string cfg_panelIconDefault: "com.keyaruga.applicationgroup"
     property alias cfg_showBadge: showBadgeCheck.checked
@@ -97,8 +99,21 @@ KCM.SimpleKCM {
 
         Item { Kirigami.FormData.isSection: true }
 
-        RowLayout {
+        QQC2.ComboBox {
+            id: panelIconModeCombo
             Kirigami.FormData.label: page.tr("cfgPanelIcon")
+            textRole: "label"
+            valueRole: "value"
+            model: [
+                { value: "grid",   label: page.tr("cfgIconAppGrid") },
+                { value: "custom", label: page.tr("cfgIconCustom") }
+            ]
+            Component.onCompleted: currentIndex = Math.max(0, indexOfValue(page.cfg_panelIconMode))
+            onActivated: page.cfg_panelIconMode = currentValue
+        }
+
+        RowLayout {
+            visible: page.cfg_panelIconMode === "custom"
             spacing: Kirigami.Units.smallSpacing
 
             QQC2.TextField {

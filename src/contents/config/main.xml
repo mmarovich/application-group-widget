@@ -19,6 +19,11 @@
       <default>true</default>
     </entry>
 
+    <!-- "grid" = mini grid of the first 4 item icons; "custom" = panelIcon -->
+    <entry name="panelIconMode" type="String">
+      <default>grid</default>
+    </entry>
+
     <entry name="panelIcon" type="String">
       <default>com.keyaruga.applicationgroup</default>
     </entry>

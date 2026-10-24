@@ -279,6 +279,8 @@ PlasmoidItem {
     compactRepresentation: CompactRepresentation {
         itemsCount: root.displayedItems.length
         panelIcon: root.cfg("panelIcon")
+        panelIconMode: root.cfg("panelIconMode")
+        items: root.displayedItems
         showBadge: root.cfg("showBadge")
         lang: root.lang
 
