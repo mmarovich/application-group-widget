@@ -283,6 +283,7 @@ PlasmoidItem {
         items: root.displayedItems
         showBadge: root.cfg("showBadge")
         lang: root.lang
+        expanded: root.expanded
 
         onToggleRequested: root.expanded = !root.expanded
         onDropReceived: event => {

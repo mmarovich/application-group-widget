@@ -16,6 +16,8 @@ DragDrop.DropArea {
     property var items: []
     property bool showBadge: true
     property string lang: "en"
+    // True while this group's drawer is open; drives the selection glow.
+    property bool expanded: false
 
     signal toggleRequested()
     signal dropReceived(var event)
@@ -60,6 +62,51 @@ DragDrop.DropArea {
         border.width: compactRoot.containsDrag ? 2 : 0
 
         Behavior on color { ColorAnimation { duration: Kirigami.Units.shortDuration } }
+    }
+
+    // Selection glow: accent-colored soft halo that gently pulses while the drawer is open.
+    // Hidden and not animating when closed, so it costs nothing at idle.
+    Item {
+        id: selectionGlow
+        anchors.centerIn: parent
+        width: Math.min(parent.width, parent.height)
+        height: width
+        visible: compactRoot.expanded
+        opacity: 1
+
+        readonly property color accent: Kirigami.Theme.highlightColor
+        readonly property real cornerRadius: Math.round(width * 0.28)
+
+        // Inner tint behind the icon.
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 3
+            radius: Math.max(0, selectionGlow.cornerRadius - 3)
+            color: Qt.rgba(selectionGlow.accent.r, selectionGlow.accent.g, selectionGlow.accent.b, 0.30)
+        }
+
+        // Three rings fading outward give a soft edge without a shader.
+        Repeater {
+            model: [0.35, 0.70, 1.0]
+            Rectangle {
+                required property int index
+                required property var modelData
+                anchors.fill: parent
+                anchors.margins: index
+                radius: Math.max(0, selectionGlow.cornerRadius - index)
+                color: "transparent"
+                border.width: 1
+                border.color: Qt.rgba(selectionGlow.accent.r, selectionGlow.accent.g, selectionGlow.accent.b, modelData)
+            }
+        }
+
+        SequentialAnimation on opacity {
+            running: compactRoot.expanded
+            loops: Animation.Infinite
+            alwaysRunToEnd: false
+            NumberAnimation { from: 1.0; to: 0.5; duration: 850; easing.type: Easing.InOutSine }
+            NumberAnimation { from: 0.5; to: 1.0; duration: 850; easing.type: Easing.InOutSine }
+        }
     }
 
     Kirigami.Icon {
