@@ -14,6 +14,9 @@ KCM.SimpleKCM {
     property string cfg_items: "[]"
     property string cfg_itemsDefault: "[]"
     property string cfg_language: "auto"
+    // Declared so the dialog can set them. LivePreview keeps cfg_livePreview empty.
+    property string cfg_livePreview: ""
+    property string cfg_livePreviewDefault: ""
 
     readonly property string lang: {
         if (cfg_language === "fa" || cfg_language === "en")

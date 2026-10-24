@@ -32,6 +32,9 @@ KCM.SimpleKCM {
     property int cfg_glowIntensity: 60
     property int cfg_glowIntensityDefault: 60
     property string cfg_language: "auto"
+    // Declared so the dialog can set them. LivePreview keeps cfg_livePreview empty.
+    property string cfg_livePreview: ""
+    property string cfg_livePreviewDefault: ""
 
     readonly property string lang: {
         if (cfg_language === "fa" || cfg_language === "en")

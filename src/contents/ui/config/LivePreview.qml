@@ -2,7 +2,9 @@ import QtQuick
 import org.kde.plasma.plasmoid
 
 // Pushes the page's unsaved cfg_* values into Plasmoid.configuration.livePreview.
-// Do not declare cfg_livePreview on the page: Apply/OK copies every cfg_<key> that exists.
+// Pages declare cfg_livePreview so the config dialog can set it. The property
+// stays empty: Apply/OK copies every cfg_<key>, and this one must not store
+// the preview JSON. cfg_livePreview is skipped below and never published.
 QtObject {
     id: bridge
 
@@ -108,6 +110,11 @@ QtObject {
     }
 
     Component.onCompleted: {
+        // setInitialProperties runs before this, and the dialog connects
+        // cfg_*Changed only after the page is pushed. Clear any saved preview
+        // blob now so Apply writes "" without turning itself on.
+        if (bridge.page && bridge.page.cfg_livePreview !== undefined)
+            bridge.page.cfg_livePreview = "";
         bridge.connectAll();
         bridge.schedule();
     }
