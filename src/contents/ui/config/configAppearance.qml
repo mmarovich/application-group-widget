@@ -27,6 +27,10 @@ KCM.SimpleKCM {
     property bool cfg_showLabelsDefault: true
     property int cfg_fontSizeDelta: 0
     property int cfg_fontSizeDeltaDefault: 0
+    property alias cfg_glowEnabled: glowEnabledCheck.checked
+    property bool cfg_glowEnabledDefault: true
+    property int cfg_glowIntensity: 60
+    property int cfg_glowIntensityDefault: 60
     property string cfg_language: "auto"
 
     readonly property string lang: {
@@ -168,6 +172,33 @@ KCM.SimpleKCM {
             to: 6
             value: page.cfg_fontSizeDelta
             onValueModified: page.cfg_fontSizeDelta = value
+        }
+
+        Item { Kirigami.FormData.isSection: true }
+
+        QQC2.CheckBox {
+            id: glowEnabledCheck
+            Kirigami.FormData.label: page.tr("cfgGlowEnabled")
+            checked: true
+        }
+
+        RowLayout {
+            visible: glowEnabledCheck.checked
+            Kirigami.FormData.label: page.tr("cfgGlowIntensity")
+            spacing: Kirigami.Units.smallSpacing
+
+            QQC2.Slider {
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 10
+                from: 0
+                to: 100
+                stepSize: 5
+                value: page.cfg_glowIntensity
+                onMoved: page.cfg_glowIntensity = Math.round(value)
+            }
+
+            QQC2.Label {
+                text: page.cfg_glowIntensity + "%"
+            }
         }
     }
 }

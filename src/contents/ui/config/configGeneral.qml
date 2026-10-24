@@ -20,10 +20,6 @@ KCM.SimpleKCM {
     property string cfg_panelIconDefault: "com.keyaruga.applicationgroup"
     property alias cfg_showBadge: showBadgeCheck.checked
     property bool cfg_showBadgeDefault: true
-    property alias cfg_glowEnabled: glowEnabledCheck.checked
-    property bool cfg_glowEnabledDefault: true
-    property int cfg_glowIntensity: 60
-    property int cfg_glowIntensityDefault: 60
     property alias cfg_enableFilter: enableFilterCheck.checked
     property bool cfg_enableFilterDefault: true
     property string cfg_language: "auto"
@@ -142,31 +138,6 @@ KCM.SimpleKCM {
                 icon.name: "preferences-desktop-icons"
                 text: page.tr("chooseIconKde")
                 onClicked: panelIconDialog.open()
-            }
-        }
-
-        QQC2.CheckBox {
-            id: glowEnabledCheck
-            Kirigami.FormData.label: page.tr("cfgGlowEnabled")
-            checked: true
-        }
-
-        RowLayout {
-            visible: glowEnabledCheck.checked
-            Kirigami.FormData.label: page.tr("cfgGlowIntensity")
-            spacing: Kirigami.Units.smallSpacing
-
-            QQC2.Slider {
-                Layout.preferredWidth: Kirigami.Units.gridUnit * 10
-                from: 0
-                to: 100
-                stepSize: 5
-                value: page.cfg_glowIntensity
-                onMoved: page.cfg_glowIntensity = Math.round(value)
-            }
-
-            QQC2.Label {
-                text: page.cfg_glowIntensity + "%"
             }
         }
 
