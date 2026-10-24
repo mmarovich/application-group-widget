@@ -69,7 +69,7 @@ DragDrop.DropArea {
     }
 
     // Selection glow: a soft accent-color bloom that radiates out from the button while
-    // the drawer is open, and gently pulses. glowIntensity (0-100) sets both brightness
+    // the drawer is open, and breathes with a deep pulse. glowIntensity (0-100) sets both brightness
     // and reach. Nothing is drawn or animated when the drawer is closed or glow is off.
     Item {
         id: selectionGlow
@@ -83,17 +83,25 @@ DragDrop.DropArea {
         readonly property color accent: Kirigami.Theme.highlightColor
         readonly property color hot: Qt.lighter(accent, 1.35)
         readonly property real cornerRadius: Math.round(width * 0.28)
-        // Pulse factor: 1.0 -> 0.68 -> 1.0, only while active.
-        property real pulse: 1.0
+        // Breathing phase: 1 = peak (bright), 0 = dim point. 1.8s full cycle with
+        // InOutSine easing, only while active. The intensity slider sets the peak; the
+        // pulse dips from there:
+        //   bloom brightness 20% -> 100% of peak, bloom reach 85% -> 100% (horizontal),
+        //   inner halo 35% -> 100%, crisp ring 55% -> 100% (always identifiable).
+        property real phase: 1.0
+        readonly property real pulse: 0.20 + 0.80 * phase
+        readonly property real reachPulse: 0.85 + 0.15 * phase
+        readonly property real haloPulse: 0.35 + 0.65 * phase
+        readonly property real ringPulse: 0.55 + 0.45 * phase
 
-        SequentialAnimation on pulse {
+        SequentialAnimation on phase {
             running: selectionGlow.active
             loops: Animation.Infinite
             alwaysRunToEnd: false
-            NumberAnimation { from: 1.0; to: 0.68; duration: 900; easing.type: Easing.InOutSine }
-            NumberAnimation { from: 0.68; to: 1.0; duration: 900; easing.type: Easing.InOutSine }
+            NumberAnimation { from: 1.0; to: 0.0; duration: 900; easing.type: Easing.InOutSine }
+            NumberAnimation { from: 0.0; to: 1.0; duration: 900; easing.type: Easing.InOutSine }
         }
-        onActiveChanged: if (!active) pulse = 1.0
+        onActiveChanged: if (!active) phase = 1.0
 
         // Radial bloom: an accent gradient that fades smoothly with distance. Drawn as a
         // circle and squashed vertically, since a horizontal panel has more room to the
@@ -115,6 +123,8 @@ DragDrop.DropArea {
             transform: Scale {
                 origin.x: bloomShape.width / 2
                 origin.y: bloomShape.height / 2
+                // Reach breathes along the panel (GPU transform, no re-tessellation).
+                xScale: selectionGlow.reachPulse
                 // Vertically the panel window only extends a few pixels past the button, so
                 // fade out within ~12px to avoid a hard edge at the window border.
                 yScale: Math.min(1, (selectionGlow.height / 2 + Math.min(12, bloomShape.reach * 0.6)) / bloomShape.r)
@@ -169,7 +179,7 @@ DragDrop.DropArea {
             blurEnabled: true
             blur: 1.0
             blurMax: 12 + Math.round(20 * selectionGlow.level)
-            opacity: Math.min(1, 0.45 + 0.75 * selectionGlow.level) * (0.75 + 0.25 * selectionGlow.pulse)
+            opacity: Math.min(1, 0.45 + 0.75 * selectionGlow.level) * selectionGlow.haloPulse
         }
 
         // Crisp accent ring on the button edge.
@@ -177,9 +187,9 @@ DragDrop.DropArea {
             anchors.fill: parent
             anchors.margins: 1
             radius: Math.max(0, selectionGlow.cornerRadius - 1)
-            color: Qt.rgba(selectionGlow.accent.r, selectionGlow.accent.g, selectionGlow.accent.b, 0.18 + 0.2 * selectionGlow.level)
+            color: Qt.rgba(selectionGlow.accent.r, selectionGlow.accent.g, selectionGlow.accent.b, (0.18 + 0.2 * selectionGlow.level) * selectionGlow.ringPulse)
             border.width: 1.5
-            border.color: Qt.rgba(selectionGlow.hot.r, selectionGlow.hot.g, selectionGlow.hot.b, 0.6 + 0.4 * selectionGlow.level)
+            border.color: Qt.rgba(selectionGlow.hot.r, selectionGlow.hot.g, selectionGlow.hot.b, (0.6 + 0.4 * selectionGlow.level) * selectionGlow.ringPulse)
         }
     }
 
