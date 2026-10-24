@@ -154,11 +154,9 @@ DragDrop.DropArea {
                 return;
             }
 
-            // Ensure QQC2 overlay stays visible and active for menus and popups
-            if (QQC2.Overlay.overlay) {
-                QQC2.Overlay.overlay.opacity = 1;
-                QQC2.Overlay.overlay.visible = true;
-            }
+            // Leave the QQC2 overlay alone. Qt shows it only while a menu or
+            // dialog is open. While it is visible it filters every mouse press
+            // on the window, which starves AppletPopup's edge resize handler.
 
             var hidden = false;
             var kids = content.children;
