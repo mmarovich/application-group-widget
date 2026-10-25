@@ -26,12 +26,12 @@ DragDrop.DropArea {
     property string iconSize: "medium"
     property string backgroundStyle: "card"
     property real backgroundOpacity: 0.85
-    // Only Frosted Glass asks KWin to blur behind the popup. Every other style
-    // gets (almost) no blur region (see noblur.svg), so Background Opacity
-    // shows the desktop through the popup as-is. The glass SVG paints fully
-    // transparent pixels and puts the blur shape on mask-* elements, so the
-    // window buffer keeps alpha even when FrameSvg item opacity does not.
-    readonly property bool blurBehind: backgroundStyle === "glass"
+    // Every style, including Frosted Glass, uses noblur.svg. A rounded mask
+    // is opaque across the popup, and PlasmaWindow gives that region to
+    // KWin background contrast, which paints a solid panel over the desktop.
+    // Glass stays visually distinct in the QML gradient; its translucency
+    // is backgroundOpacity, same as the other styles.
+    readonly property bool blurBehind: false
     property int borderRadius: 16
     property bool showLabels: true
     property int fontSizeDelta: 0
@@ -479,10 +479,6 @@ DragDrop.DropArea {
     // is what emits KSvg maskChanged. Setting the same imagePath again does
     // not, so a timer that only re-reads mask never reaches KWin.
     function maskFilePath(alt) {
-        if (fullRoot.blurBehind) {
-            var rounded = "rounded-" + fullRoot.maskRadius + (alt ? "-b" : "") + ".svg";
-            return fullRoot.frameFilePath(rounded);
-        }
         return fullRoot.frameFilePath(alt ? "noblur-b.svg" : "noblur.svg");
     }
 
