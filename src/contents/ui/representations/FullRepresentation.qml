@@ -28,7 +28,9 @@ DragDrop.DropArea {
     property real backgroundOpacity: 0.85
     // Only Frosted Glass asks KWin to blur behind the popup. Every other style
     // gets (almost) no blur region (see noblur.svg), so Background Opacity
-    // shows the desktop through the popup as-is.
+    // shows the desktop through the popup as-is. The glass SVG paints fully
+    // transparent pixels and puts the blur shape on mask-* elements, so the
+    // window buffer keeps alpha even when FrameSvg item opacity does not.
     readonly property bool blurBehind: backgroundStyle === "glass"
     property int borderRadius: 16
     property bool showLabels: true
@@ -375,8 +377,18 @@ DragDrop.DropArea {
         if (!win.visible) {
             popupFrameTimer.stop();
             fullRoot._needsPokeSeries = true;
-            // Put the theme margins back before AppletPopup saves the size.
-            fullRoot.applyCustomPopupFrame(false);
+            fullRoot._stylePopupColor = false;
+            // Do not rewrite imagePath inside the hide. AppletPopup::focusOutEvent
+            // has just set visible false, and putting dialogs/background back
+            // here is an opaque frame. On the glass drawer that resize also
+            // makes CompactApplet's visible binding show the popup again, so
+            // click-outside never sticks. Restore margins after this event.
+            try {
+                if (!win.color || win.color.a !== 0)
+                    win.color = "transparent";
+            } catch (eHideColor) {
+            }
+            Qt.callLater(fullRoot.restoreFrameAfterHide);
             fullRoot._inSettle = false;
             return;
         }
@@ -393,6 +405,13 @@ DragDrop.DropArea {
         if (!popupFrameTimer.running)
             popupFrameTimer.start();
         fullRoot._inSettle = false;
+    }
+
+    function restoreFrameAfterHide() {
+        var win = fullRoot.popupWindow;
+        if (!win || win.visible || !fullRoot.isAppletPopupWindow(win))
+            return;
+        fullRoot.applyCustomPopupFrame(false);
     }
 
     // KWin's blur/contrast region follows the alpha mask of the popup's (now
@@ -737,11 +756,10 @@ DragDrop.DropArea {
         restoreMode: Binding.RestoreNone
     }
 
-    // DialogBackground's FrameSvg is created in another QML engine and can
-    // show up after the popup is exposed. The first maskChanged is dropped
-    // when it fires before the Wayland surface exists. Re-applying the same
-    // imagePath does not emit maskChanged again (KSvg::FrameSvg::setImagePath
-    // returns early). Ticks listed below swap to the twin SVG instead.
+    // DialogBackground's FrameSvg can show up a few frames after the popup
+    // is exposed. Re-apply the same path only until it sticks. Do not swap
+    // to a second file: that rewrite during hide put the opaque theme frame
+    // back and the glass popup stayed open.
     Timer {
         id: popupFrameTimer
         interval: 32
@@ -763,22 +781,19 @@ DragDrop.DropArea {
             if (!win.visible) {
                 stop();
                 fullRoot._needsPokeSeries = true;
-                fullRoot.applyCustomPopupFrame(false);
+                Qt.callLater(fullRoot.restoreFrameAfterHide);
                 return;
             }
-            var poke = ticks === 2 || ticks === 6 || ticks === 12 || ticks === 20 || ticks === 30;
-            fullRoot.applyCustomPopupFrame(poke);
+            fullRoot.applyCustomPopupFrame(false);
             ticks++;
-            if (ticks >= 36)
+            var f = fullRoot.findThemeFrameSvg(win);
+            if ((f && fullRoot.isOwnMask(f.imagePath) && ticks >= 4) || ticks >= 20)
                 stop();
         }
     }
 
     // setBackgroundHints resets imagePath to dialogs/background when the hint
-    // changes, which can land after the fast timer has stopped. While the
-    // popup is open, put our mask back if that happens. A few twin swaps
-    // after show cover a maskChanged that was dropped before the surface
-    // was mapped; once those are spent, only opacity is reasserted.
+    // changes. While the popup is open, put our mask back. Never swap files.
     Timer {
         id: popupMaskLocker
         interval: 500
@@ -788,14 +803,10 @@ DragDrop.DropArea {
             if (fullRoot._applyingFrame)
                 return;
             var f = fullRoot.findThemeFrameSvg(fullRoot.popupWindow);
-            if (!f || !fullRoot.isOwnMask(f.imagePath)) {
+            if (!f || !fullRoot.isOwnMask(f.imagePath))
                 fullRoot.applyCustomPopupFrame(false);
-            } else if (fullRoot._maskPokesLeft > 0) {
-                fullRoot._maskPokesLeft--;
-                fullRoot.applyCustomPopupFrame(true);
-            } else {
+            else
                 fullRoot.reassertFrameHidden();
-            }
         }
     }
 
@@ -814,6 +825,8 @@ DragDrop.DropArea {
         }
         function onVisibleChanged() {
             fullRoot.schedulePopupFrameSettle();
+            if (fullRoot.popupWindow && !fullRoot.popupWindow.visible && !fullRoot.isPinned)
+                fullRoot.dismissRequested();
         }
     }
 
@@ -829,6 +842,11 @@ DragDrop.DropArea {
     property int dragSourceIndex: -1
     property int dragTargetIndex: -1
 
+    // AppletPopup hides itself from focusOut, but CompactApplet's
+    // `visible: expanded` binding puts it back until expandedSync runs.
+    // On the glass drawer that round-trip never settled, so click-outside
+    // looked like a no-op. Tell the plasmoid to drop expanded immediately.
+    signal dismissRequested()
     signal itemLaunchRequested(var item)
     signal itemAdded(var item)
     signal itemUpdated(var item, int index)
