@@ -3,8 +3,10 @@ import QtQuick.Layouts
 import QtQuick.Controls as QQC2
 import org.kde.kirigami as Kirigami
 import org.kde.kcmutils as KCM
+import org.kde.plasma.plasmoid
 import "../lib/Translations.js" as Tr
 import "../lib/UiStyle.js" as UiStyle
+import "../lib/SharedAppearance.js" as SharedAppearance
 
 KCM.SimpleKCM {
     id: page
@@ -130,7 +132,27 @@ KCM.SimpleKCM {
                 { value: "outline", label: page.tr("cfgStyleOutline") }
             ]
             Component.onCompleted: currentIndex = Math.max(0, indexOfValue(page.cfg_backgroundStyle))
-            onActivated: page.cfg_backgroundStyle = currentValue
+            onActivated: {
+                var next = String(currentValue || "");
+                var savedStyle = String(Plasmoid.configuration.backgroundStyle || "");
+                var savedOpacity = Number(Plasmoid.configuration.backgroundOpacity);
+                var savedRadius = Number(Plasmoid.configuration.borderRadius);
+                // Re-picking the style this drawer already has shares that saved
+                // chrome immediately. A real change stays in the preview so
+                // Cancel can still discard it.
+                var unchanged = next === String(page.cfg_backgroundStyle || "")
+                    && next === savedStyle
+                    && Math.abs(Number(page.cfg_backgroundOpacity) - savedOpacity) < 0.001
+                    && Number(page.cfg_borderRadius) === savedRadius;
+                if (unchanged) {
+                    SharedAppearance.writeToSiblings(Plasmoid, {
+                        backgroundStyle: next,
+                        backgroundOpacity: savedOpacity,
+                        borderRadius: savedRadius
+                    }, true);
+                }
+                page.cfg_backgroundStyle = next;
+            }
         }
 
         RowLayout {

@@ -10,6 +10,7 @@ import "representations"
 import "lib/Translations.js" as Tr
 import "lib/ItemsManager.js" as ItemsManager
 import "lib/AppResolver.js" as AppResolver
+import "lib/SharedAppearance.js" as SharedAppearance
 
 PlasmoidItem {
     id: root
@@ -37,15 +38,14 @@ PlasmoidItem {
         return root._emptyPreview;
     }
 
-    // Preview wins when the key is present, including false and 0.
-    // Reads previewValues and configuration[key] so callers re-evaluate.
+    // This dialog's unsaved preview wins, then a style another open dialog is
+    // previewing, then the saved configuration. The reads stay in this function
+    // so bindings notice livePreview, the shared override, and configuration.
     function cfg(key) {
         var values = root.previewValues;
+        var override = root.sharedAppearanceOverride;
         var saved = Plasmoid.configuration[key];
-        if (values !== undefined && values !== null && values[key] !== undefined) {
-            return values[key];
-        }
-        return saved;
+        return SharedAppearance.displayedValue(key, values, override, saved);
     }
 
     readonly property string lang: {
@@ -78,6 +78,46 @@ PlasmoidItem {
         }
     }
 
+    function containmentHost() {
+        var host = root.parent;
+        while (host) {
+            if (typeof host.itemFor === "function") {
+                var selfItem = null;
+                try {
+                    selfItem = host.itemFor(Plasmoid);
+                } catch (eHost) {
+                    selfItem = null;
+                }
+                if (selfItem === root)
+                    return host;
+            }
+            host = host.parent;
+        }
+        return null;
+    }
+
+    function withSiblingItems(callback) {
+        var host = root.containmentHost();
+        if (!host) {
+            return;
+        }
+        SharedAppearance.forEachSibling(Plasmoid, function(applet) {
+            var item = null;
+            try {
+                item = host.itemFor(applet);
+            } catch (eItem) {
+                item = null;
+            }
+            if (!item || item === root) {
+                return;
+            }
+            try {
+                callback(item);
+            } catch (eCallback) {
+            }
+        });
+    }
+
     // Plasma 6 keeps expanded on the PlasmoidItem, not on Plasma::Applet.
     // The panel walks Containment.applets and clears expanded when it enters
     // edit mode; from an applet that list has no expanded property, so resolve
@@ -93,21 +133,8 @@ PlasmoidItem {
         if (!containment || !containment.applets)
             return;
 
-        var host = root.parent;
-        while (host) {
-            if (typeof host.itemFor === "function") {
-                var selfItem = null;
-                try {
-                    selfItem = host.itemFor(Plasmoid);
-                } catch (eHost) {
-                    selfItem = null;
-                }
-                if (selfItem === root)
-                    break;
-            }
-            host = host.parent;
-        }
-        if (!host || typeof host.itemFor !== "function")
+        var host = root.containmentHost();
+        if (!host)
             return;
 
         var mine = String(Plasmoid.pluginName || "");
@@ -150,10 +177,103 @@ PlasmoidItem {
             Qt.callLater(root.closeOtherApplicationGroups);
     }
 
+    // backgroundStyle, backgroundOpacity, and borderRadius are one choice for
+    // every Application Group. Glow, titles, items, and the panel icon stay
+    // on the drawer that owns them. There is no backgroundHue key.
+    //
+    // While the Appearance dialog is open, other drawers on this containment
+    // follow that preview in memory. Apply/OK writes each sibling's applet
+    // configuration, so a plasmashell restart keeps them matched. Cancel drops
+    // the preview and leaves saved configuration alone.
+    property bool appearanceSyncReady: false
+    property bool appearanceFlushPending: false
+    property var sharedAppearanceOverride: null
+    property var sharedAppearance: ({
+        backgroundStyle: "card",
+        backgroundOpacity: 0.85,
+        borderRadius: 16
+    })
+
+    function rememberSharedAppearance() {
+        root.sharedAppearance = SharedAppearance.savedCluster(Plasmoid.configuration);
+    }
+
+    function pushSiblingAppearanceOverride(cluster) {
+        root.withSiblingItems(function(item) {
+            item.sharedAppearanceOverride = cluster;
+        });
+    }
+
+    function clearSiblingAppearanceOverride() {
+        root.withSiblingItems(function(item) {
+            if (item.sharedAppearanceOverride)
+                item.sharedAppearanceOverride = null;
+        });
+    }
+
+    // Unsaved Appearance values. Not written to applet configuration, so
+    // Cancel cannot persist them and a restart cannot save a discarded edit.
+    function onSharedAppearancePreview(raw) {
+        if (!root.appearanceSyncReady) {
+            return;
+        }
+        if (!root.configuring || !raw) {
+            root.clearSiblingAppearanceOverride();
+            return;
+        }
+        var parsed = null;
+        try {
+            parsed = JSON.parse(String(raw));
+        } catch (ePreview) {
+            parsed = null;
+        }
+        if (!parsed || parsed.tag !== "appearance" || !parsed.values) {
+            return;
+        }
+        var cluster = SharedAppearance.previewCluster(root.sharedAppearance, parsed.values);
+        if (!cluster) {
+            root.clearSiblingAppearanceOverride();
+            return;
+        }
+        root.pushSiblingAppearanceOverride(cluster);
+    }
+
+    function flushSharedAppearance() {
+        root.appearanceFlushPending = false;
+        // Read after every key from this Apply has been stored.
+        root.rememberSharedAppearance();
+        SharedAppearance.writeToSiblings(Plasmoid, root.sharedAppearance, true);
+        SharedAppearance.persistSiblings(Plasmoid);
+        root.clearSiblingAppearanceOverride();
+    }
+
+    function onSharedAppearanceValue(key, value) {
+        if (!root.appearanceSyncReady || !SharedAppearance.isSharedKey(key)) {
+            return;
+        }
+        var canon = SharedAppearance.canonical(key, value);
+        if (SharedAppearance.equal(key, root.sharedAppearance[key], canon)) {
+            return;
+        }
+        root.sharedAppearance = SharedAppearance.withSavedKey(root.sharedAppearance, key, canon);
+        // A sibling pushed this value. Remember it so we do not write it back.
+        if (!root.configuring) {
+            return;
+        }
+        if (!root.appearanceFlushPending) {
+            root.appearanceFlushPending = true;
+            Qt.callLater(root.flushSharedAppearance);
+        }
+    }
+
     Component.onCompleted: {
+        root.rememberSharedAppearance();
         if (!root.configuring && Plasmoid.configuration.livePreview) {
             Plasmoid.configuration.livePreview = "";
         }
+        Qt.callLater(function() {
+            root.appearanceSyncReady = true;
+        });
     }
 
     property var itemsList: ItemsManager.parseItems(Plasmoid.configuration.items)
@@ -226,6 +346,13 @@ PlasmoidItem {
         target: Plasmoid.configuration
         function onItemsChanged() {
             root.itemsList = ItemsManager.parseItems(Plasmoid.configuration.items);
+        }
+        function onValueChanged(key, value) {
+            if (key === "livePreview") {
+                root.onSharedAppearancePreview(value);
+                return;
+            }
+            root.onSharedAppearanceValue(key, value);
         }
     }
 
